@@ -249,11 +249,11 @@ app.post('/api/save-game-result', async (req, res) => {
       }
 
       // Обновление монет и общего счета
-      user.coins += coins;
-      user.totalScore += score;
+      user.coinsGame += coins;
+      user.ScoreGame += score;
 
       // Добавление записи в историю очков
-      user.scoreHistory.push({ score, coins, timestamp });
+      user.push({ score, coins, timestamp });
 
       await user.save();
 

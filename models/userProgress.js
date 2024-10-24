@@ -41,12 +41,22 @@ const UserSchema = new mongoose.Schema({
     type: Number, 
     default: 0 
   },
-  scoreHistory: [{
-    score: Number,
-    coins: Number,
-    timestamp: Date
-}],
 
+ScoreGame:
+{ 
+  type: Number, 
+  default: 0 
+},
+
+timestamGame: { 
+  type: Date, 
+  default: null
+ },
+coinsGame:
+{ 
+  type: Number, 
+  default: 0 
+},
 
   hasTelegramPremium:
   { 
