@@ -239,28 +239,29 @@ app.post('/api/save-game-result', async (req, res) => {
 
   // Валидация входных данных
   if (!telegramId || typeof score !== 'number' || typeof coins !== 'number') {
-      return res.status(400).json({ success: false, message: 'Неверные данные.' });
+    return res.status(400).json({ success: false, message: 'Неверные данные.' });
   }
 
   try {
-      const user = await UserProgress.findOne({ telegramId: telegramId });
-      if (!user) {
-          return res.status(404).json({ success: false, message: 'Пользователь не найден.' });
-      }
+    const user = await UserProgress.findOne({ telegramId: telegramId });
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'Пользователь не найден.' });
+    }
 
-      // Обновление монет и общего счета
-      user.coinsGame += coins;
-      user.ScoreGame += score;
+    // Обновление монет и общего счета
+    user.coins += coins;
+    user.totalCoins += coins; // Обновление общего количества монет
+    user.totalScore += score; // Обновление общего счета
+    user.latestScore = score; // Последний счет
+    user.latestCoins = coins; // Последние монеты
+    user.lastGameTimestamp = timestamp; // Время игры
 
-      // Добавление записи в историю очков
-      user.push({ score, coins, timestamp });
+    await user.save();
 
-      await user.save();
-
-      res.json({ success: true, message: 'Результаты игры успешно сохранены.' });
+    res.json({ success: true, message: 'Результаты игры успешно сохранены.' });
   } catch (error) {
-      console.error('Ошибка при сохранении результатов игры:', error);
-      res.status(500).json({ success: false, message: 'Внутренняя ошибка сервера.' });
+    console.error('Ошибка при сохранении результатов игры:', error);
+    res.status(500).json({ success: false, message: 'Внутренняя ошибка сервера.' });
   }
 });
 

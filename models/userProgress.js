@@ -41,23 +41,6 @@ const UserSchema = new mongoose.Schema({
     type: Number, 
     default: 0 
   },
-
-ScoreGame:
-{ 
-  type: Number, 
-  default: 0 
-},
-
-timestamGame: { 
-  type: Date, 
-  default: null
- },
-coinsGame:
-{ 
-  type: Number, 
-  default: 0 
-},
-
   hasTelegramPremium:
   { 
     type: Boolean,
@@ -130,6 +113,11 @@ adsCompletionCount: {
     type: String,
      unique: true
   }, 
+  latestScore: { type: Number, default: 0 },
+  latestCoins: { type: Number, default: 0 },
+  totalScore: { type: Number, default: 0 },
+  totalCoins: { type: Number, default: 0 },
+  lastGameTimestamp: { type: Date, default: null },
   newReferredUsers: [{ 
     nickname: String,
     earnedCoins: Number,
@@ -141,6 +129,8 @@ adsCompletionCount: {
     earnedCoins: Number
   }]
 });
+
+
 
 const UserProgress = mongoose.model('UsersUspech1', UserSchema);
 module.exports = UserProgress;
