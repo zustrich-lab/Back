@@ -233,7 +233,36 @@ app.post('/check-subscription', async (req, res) => {
     res.status(500).json({ error: 'Ошибка сервера' });
   }
 });
+// Эндпоинт для сохранения результатов игры
+app.post('/api/save-game-result', async (req, res) => {
+  const { telegramId, score, coins, timestamp } = req.body;
 
+  // Валидация входных данных
+  if (!telegramId || typeof score !== 'number' || typeof coins !== 'number') {
+      return res.status(400).json({ success: false, message: 'Неверные данные.' });
+  }
+
+  try {
+      const user = await UserProgress.findOne({ telegramId: telegramId });
+      if (!user) {
+          return res.status(404).json({ success: false, message: 'Пользователь не найден.' });
+      }
+
+      // Обновление монет и общего счета
+      user.coins += coins;
+      user.totalScore += score;
+
+      // Добавление записи в историю очков
+      user.scoreHistory.push({ score, coins, timestamp });
+
+      await user.save();
+
+      res.json({ success: true, message: 'Результаты игры успешно сохранены.' });
+  } catch (error) {
+      console.error('Ошибка при сохранении результатов игры:', error);
+      res.status(500).json({ success: false, message: 'Внутренняя ошибка сервера.' });
+  }
+});
 
 async function checkTelegramPremium(userId) {
   try {
