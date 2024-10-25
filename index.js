@@ -1170,20 +1170,41 @@ app.post('/update-mint-status', async (req, res) => {
 
 const ADMIN_TELEGRAM_ID = '561009411';
 
+
+
 let broadcastStep = false;
 let broadcastMessage = '';
 let broadcastPhoto = null;
+let broadcastButtonText = '';
+let broadcastButtonUrl = '';
 
-// Функция для отправки сообщения с картинкой всем пользователям
-const sendMessageWithPhotoToAllUsers = async (message, photo) => {
+// Функция для отправки сообщения с картинкой и кнопкой всем пользователям
+const sendMessageWithPhotoAndButtonToAllUsers = async (message, photo, buttonText, buttonUrl) => {
   try {
     const users = await UserProgress.find({});
     users.forEach(async (user) => {
       try {
         if (photo) {
-          await bot.sendPhoto(user.telegramId, photo, { caption: message });
+          await bot.sendPhoto(user.telegramId, photo, {
+            caption: message,
+            reply_markup: {
+              inline_keyboard: [
+                [
+                  { text: buttonText, url: buttonUrl }
+                ]
+              ]
+            }
+          });
         } else {
-          await bot.sendMessage(user.telegramId, message);
+          await bot.sendMessage(user.telegramId, message, {
+            reply_markup: {
+              inline_keyboard: [
+                [
+                  { text: buttonText, url: buttonUrl }
+                ]
+              ]
+            }
+          });
         }
         console.log(`Сообщение отправлено пользователю с ID ${user.telegramId}`);
       } catch (error) {
@@ -1204,32 +1225,42 @@ bot.onText(/\/broadcast/, (msg) => {
     return bot.sendMessage(chatId, 'У вас нет прав для выполнения этой команды.');
   }
 
-  // Начинаем этап ввода сообщения и/или картинки
+  // Начинаем этап ввода сообщения, изображения и кнопки
   broadcastStep = true;
   broadcastMessage = '';
   broadcastPhoto = null;
-  bot.sendMessage(chatId, 'Введите сообщение, которое хотите отправить всем пользователям. Вы также можете отправить картинку (при необходимости).');
+  broadcastButtonText = '';
+  broadcastButtonUrl = '';
+  bot.sendMessage(chatId, 'Введите сообщение для отправки всем пользователям. Вы можете добавить картинку и кнопку.');
 });
 
 // Обработчик сообщений
 bot.on('message', async (msg) => {
   const chatId = msg.chat.id;
 
-  // Проверяем, что мы находимся в этапе ввода сообщения для рассылки
+  // Проверяем, что мы находимся в этапе ввода данных для рассылки
   if (broadcastStep && msg.from.id.toString() === ADMIN_TELEGRAM_ID) {
     if (msg.photo) {
       // Если получено фото, сохраняем его
       broadcastPhoto = msg.photo[msg.photo.length - 1].file_id;
-      bot.sendMessage(chatId, 'Картинка сохранена. Теперь отправьте текст сообщения, или отправьте команду /send для рассылки.');
-    } else if (msg.text && msg.text !== '/send') {
-      // Если получен текст, сохраняем его
+      bot.sendMessage(chatId, 'Картинка сохранена. Теперь отправьте текст сообщения или введите текст кнопки и ссылку.');
+    } else if (msg.text && !msg.text.startsWith('/send') && !broadcastButtonText) {
+      // Если получен текст сообщения
       broadcastMessage = msg.text;
-      bot.sendMessage(chatId, 'Сообщение сохранено. Если хотите отправить картинку, отправьте её сейчас или используйте команду /send для рассылки.');
+      bot.sendMessage(chatId, 'Сообщение сохранено. Отправьте текст для кнопки, например: "Купить сейчас"');
+    } else if (msg.text && broadcastMessage && !broadcastButtonUrl) {
+      // Если получен текст для кнопки
+      broadcastButtonText = msg.text;
+      bot.sendMessage(chatId, 'Текст кнопки сохранен. Теперь отправьте ссылку для кнопки.');
+    } else if (msg.text && broadcastButtonText && !broadcastButtonUrl) {
+      // Если получена ссылка для кнопки
+      broadcastButtonUrl = msg.text;
+      bot.sendMessage(chatId, 'Ссылка для кнопки сохранена. Теперь отправьте команду /send для отправки.');
     } else if (msg.text === '/send') {
       // Отправляем сообщение всем пользователям
       broadcastStep = false;
-      await sendMessageWithPhotoToAllUsers(broadcastMessage, broadcastPhoto);
-      bot.sendMessage(chatId, 'Сообщение успешно отправлено всем пользователям.');
+      await sendMessageWithPhotoAndButtonToAllUsers(broadcastMessage, broadcastPhoto, broadcastButtonText, broadcastButtonUrl);
+      bot.sendMessage(chatId, 'Сообщение с картинкой и кнопкой успешно отправлено всем пользователям.');
     }
   }
 });
