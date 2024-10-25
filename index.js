@@ -1114,142 +1114,13 @@ app.post('/get-referral-count', async (req, res) => {
 //     userStates[userId] = { state: 'awaiting_message' };
 //     bot.sendMessage(chatId, 'Пожалуйста, отправьте сообщение или фото, которое вы хотите разослать всем пользователям.');
 // });
-const sendMessageToAllUsers = async (message, buttonText) => {
-  try {
-    // Получаем всех пользователей из базы данных
-    const users = await UserProgress.find({}, 'telegramId');
-
-    // Устанавливаем размер батча
-    const chunkSize = 200; // количество пользователей в одном "батче"
-
-    // Проходим по пользователям батчами
-    for (let i = 0; i < users.length; i += chunkSize) {
-      const chunk = users.slice(i, i + chunkSize);
-
-      // Отправляем сообщения пользователям в этом батче
-      await Promise.all(chunk.map(async (user) => {
-        if (message.text) {
-          // Отправка текстового сообщения с кнопкой
-          const replyMarkup = {
-            inline_keyboard: [[{ text: buttonText, callback_data: 'start_command' }]]
-          };
-          await bot.sendMessage(user.telegramId, message.text, { reply_markup: replyMarkup });
-        } else if (message.photo) {
-          // Отправка фото с кнопкой
-          const photo = message.photo[message.photo.length - 1].file_id;
-          const caption = message.caption || '';
-          const replyMarkup = {
-            inline_keyboard: [[{ text: buttonText, callback_data: 'start_command' }]]
-          };
-          await bot.sendPhoto(user.telegramId, photo, { caption, reply_markup: replyMarkup });
-        } else if (message.video) {
-          // Отправка видео с кнопкой
-          const video = message.video.file_id;
-          const caption = message.caption || '';
-          const replyMarkup = {
-            inline_keyboard: [[{ text: buttonText, callback_data: 'start_command' }]]
-          };
-          await bot.sendVideo(user.telegramId, video, { caption, reply_markup: replyMarkup });
-        }
-      }));
-
-      // Пауза 1 секунда между батчами для избежания перегрузки
-      await new Promise(resolve => setTimeout(resolve, 1000));
-    }
-  } catch (error) {
-    console.error('Ошибка при отправке сообщений:', error);
-  }
-};
-
-bot.on('callback_query', async (callbackQuery) => {
-  const message = callbackQuery.message;
-  const userId = callbackQuery.from.id;
-
-  if (callbackQuery.data === 'start_command') {
-   
-    
-    // Вызовите функцию, которая отвечает за команду /start
-    handleStartCommand(userId, message.chat.id);
-  }
-
-  bot.answerCallbackQuery(callbackQuery.id);
-});
-
-async function handleStartCommand(userId, chatId) {
-  // Ваш код для обработки команды /start
-  const appUrl = `https://octies.org/?userId=${userId}`;
-  const channelUrl = `https://t.me/octies_community`;
-
-  try {
-    const imagePath = path.join(__dirname, 'images', 'Octies_bot_logo.png');
-    
-    await bot.sendPhoto(chatId, imagePath, {
-      caption: "How cool is your Telegram profile? Check your rating and receive rewards 🐙",
-      reply_markup: {
-        inline_keyboard: [
-          [
-            { text: "Let's Go!", web_app: { url: appUrl } },
-            { text: 'Join OCTIES Community', url: channelUrl }
-          ]
-        ]
-      }
-    });
-  } catch (error) {
-    console.error('Ошибка при отправке фото:', error);
-    bot.sendMessage(chatId, 'Произошла ошибка при отправке фото.');
-  }
-}
 
 
-const ADMIN_IDS = [561009411]; // Замени на реальные Telegram ID администраторов
 
-bot.onText(/\/broadcast/, (msg) => {
-    const chatId = msg.chat.id;
-    const userId = msg.from.id;
-  
-    if (!ADMIN_IDS.includes(userId)) {
-      return bot.sendMessage(chatId, 'У вас нет прав для использования этой команды.');
-    }
-  
-    userStates[userId] = { state: 'awaiting_message' };
-    bot.sendMessage(chatId, 'Пожалуйста, отправьте сообщение или фото, которое вы хотите разослать всем пользователям.');
-  });
+
   
 
-  bot.on('message', async (msg) => {
-    const chatId = msg.chat.id;
-    const userId = msg.from.id;
-  
-    if (userStates[userId] && userStates[userId].state === 'awaiting_message') {
-      userStates[userId].message = msg;
-      userStates[userId].state = 'awaiting_button_choice';
-  
-      bot.sendMessage(chatId, 'Вы хотите добавить инлайн кнопку? Отправьте "да" или "нет".');
-    } else if (userStates[userId] && userStates[userId].state === 'awaiting_button_choice') {
-      if (msg.text.toLowerCase() === 'да') {
-        userStates[userId].state = 'awaiting_button_text';
-        bot.sendMessage(chatId, 'Пожалуйста, отправьте текст для инлайн кнопки.');
-      } else {
-        await sendMessageToAllUsers(userStates[userId].message);
-        delete userStates[userId];
-        bot.sendMessage(chatId, 'Сообщение успешно отправлено всем пользователям.');
-      }
-    } else if (userStates[userId] && userStates[userId].state === 'awaiting_button_text') {
-      userStates[userId].buttonText = msg.text;
-      userStates[userId].state = 'awaiting_button_url';
-      bot.sendMessage(chatId, 'Пожалуйста, отправьте URL для инлайн кнопки.');
-    } else if (userStates[userId] && userStates[userId].state === 'awaiting_button_url') {
-      userStates[userId].buttonUrl = msg.text;
-      userStates[userId].state = 'awaiting_button_type';
-      bot.sendMessage(chatId, 'Какого типа будет кнопка? Отправьте "web_app" или "url".');
-    } else if (userStates[userId] && userStates[userId].state === 'awaiting_button_type') {
-      userStates[userId].buttonType = msg.text.toLowerCase();
-  
-      await sendMessageToAllUsers(userStates[userId].message, userStates[userId].buttonText, userStates[userId].buttonUrl, userStates[userId].buttonType);
-      delete userStates[userId];
-      bot.sendMessage(chatId, 'Сообщение с инлайн кнопкой успешно отправлено всем пользователям.');
-    }
-  });
+
 
   
 app.post('/save-wallet-address', async (req, res) => {
@@ -1294,6 +1165,72 @@ app.post('/update-mint-status', async (req, res) => {
   } catch (error) {
     console.error('Ошибка при обновлении статуса mint:', error);
     res.status(500).json({ success: false, message: 'Ошибка сервера при обновлении статуса mint.' });
+  }
+});
+
+const ADMIN_TELEGRAM_ID = '561009411';
+
+let broadcastStep = false;
+let broadcastMessage = '';
+let broadcastPhoto = null;
+
+// Функция для отправки сообщения с картинкой всем пользователям
+const sendMessageWithPhotoToAllUsers = async (message, photo) => {
+  try {
+    const users = await UserProgress.find({});
+    users.forEach(async (user) => {
+      try {
+        if (photo) {
+          await bot.sendPhoto(user.telegramId, photo, { caption: message });
+        } else {
+          await bot.sendMessage(user.telegramId, message);
+        }
+        console.log(`Сообщение отправлено пользователю с ID ${user.telegramId}`);
+      } catch (error) {
+        console.error(`Ошибка при отправке сообщения пользователю с ID ${user.telegramId}:`, error);
+      }
+    });
+  } catch (error) {
+    console.error('Ошибка при получении списка пользователей:', error);
+  }
+};
+
+// Обработчик команды /broadcast
+bot.onText(/\/broadcast/, (msg) => {
+  const chatId = msg.chat.id;
+
+  // Проверяем, что команду выполняет администратор
+  if (msg.from.id.toString() !== ADMIN_TELEGRAM_ID) {
+    return bot.sendMessage(chatId, 'У вас нет прав для выполнения этой команды.');
+  }
+
+  // Начинаем этап ввода сообщения и/или картинки
+  broadcastStep = true;
+  broadcastMessage = '';
+  broadcastPhoto = null;
+  bot.sendMessage(chatId, 'Введите сообщение, которое хотите отправить всем пользователям. Вы также можете отправить картинку (при необходимости).');
+});
+
+// Обработчик сообщений
+bot.on('message', async (msg) => {
+  const chatId = msg.chat.id;
+
+  // Проверяем, что мы находимся в этапе ввода сообщения для рассылки
+  if (broadcastStep && msg.from.id.toString() === ADMIN_TELEGRAM_ID) {
+    if (msg.photo) {
+      // Если получено фото, сохраняем его
+      broadcastPhoto = msg.photo[msg.photo.length - 1].file_id;
+      bot.sendMessage(chatId, 'Картинка сохранена. Теперь отправьте текст сообщения, или отправьте команду /send для рассылки.');
+    } else if (msg.text && msg.text !== '/send') {
+      // Если получен текст, сохраняем его
+      broadcastMessage = msg.text;
+      bot.sendMessage(chatId, 'Сообщение сохранено. Если хотите отправить картинку, отправьте её сейчас или используйте команду /send для рассылки.');
+    } else if (msg.text === '/send') {
+      // Отправляем сообщение всем пользователям
+      broadcastStep = false;
+      await sendMessageWithPhotoToAllUsers(broadcastMessage, broadcastPhoto);
+      bot.sendMessage(chatId, 'Сообщение успешно отправлено всем пользователям.');
+    }
   }
 });
 
