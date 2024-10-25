@@ -1171,7 +1171,6 @@ app.post('/update-mint-status', async (req, res) => {
 const ADMIN_TELEGRAM_ID = '561009411';
 
 
-
 let broadcastStep = false;
 let broadcastMessage = '';
 let broadcastPhoto = null;
@@ -1184,27 +1183,20 @@ const sendMessageWithPhotoAndButtonToAllUsers = async (message, photo, buttonTex
     const users = await UserProgress.find({});
     users.forEach(async (user) => {
       try {
+        const options = {
+          reply_markup: {
+            inline_keyboard: [
+              [
+                { text: buttonText, url: buttonUrl }
+              ]
+            ]
+          }
+        };
+        
         if (photo) {
-          await bot.sendPhoto(user.telegramId, photo, {
-            caption: message,
-            reply_markup: {
-              inline_keyboard: [
-                [
-                  { text: buttonText, url: buttonUrl }
-                ]
-              ]
-            }
-          });
+          await bot.sendPhoto(user.telegramId, photo, { caption: message, ...options });
         } else {
-          await bot.sendMessage(user.telegramId, message, {
-            reply_markup: {
-              inline_keyboard: [
-                [
-                  { text: buttonText, url: buttonUrl }
-                ]
-              ]
-            }
-          });
+          await bot.sendMessage(user.telegramId, message, options);
         }
         console.log(`Сообщение отправлено пользователю с ID ${user.telegramId}`);
       } catch (error) {
@@ -1225,44 +1217,64 @@ bot.onText(/\/broadcast/, (msg) => {
     return bot.sendMessage(chatId, 'У вас нет прав для выполнения этой команды.');
   }
 
-  // Начинаем этап ввода сообщения, изображения и кнопки
+  // Инициализация параметров для нового сообщения
   broadcastStep = true;
   broadcastMessage = '';
   broadcastPhoto = null;
   broadcastButtonText = '';
   broadcastButtonUrl = '';
-  bot.sendMessage(chatId, 'Введите сообщение для отправки всем пользователям. Вы можете добавить картинку и кнопку.');
+  bot.sendMessage(chatId, 'Введите текст сообщения для рассылки.');
 });
 
-// Обработчик сообщений
+// Обработчик сообщений для последовательного ввода данных
 bot.on('message', async (msg) => {
   const chatId = msg.chat.id;
 
-  // Проверяем, что мы находимся в этапе ввода данных для рассылки
+  // Проверяем, что мы находимся в процессе настройки сообщения для рассылки
   if (broadcastStep && msg.from.id.toString() === ADMIN_TELEGRAM_ID) {
-    if (msg.photo) {
-      // Если получено фото, сохраняем его
-      broadcastPhoto = msg.photo[msg.photo.length - 1].file_id;
-      bot.sendMessage(chatId, 'Картинка сохранена. Теперь отправьте текст сообщения или введите текст кнопки и ссылку.');
-    } else if (msg.text && !msg.text.startsWith('/send') && !broadcastButtonText) {
-      // Если получен текст сообщения
+    if (!broadcastMessage) {
+      // Сохраняем текст сообщения
       broadcastMessage = msg.text;
-      bot.sendMessage(chatId, 'Сообщение сохранено. Отправьте текст для кнопки, например: "Купить сейчас"');
-    } else if (msg.text && broadcastMessage && !broadcastButtonUrl) {
-      // Если получен текст для кнопки
+      bot.sendMessage(chatId, 'Сообщение сохранено. Теперь отправьте изображение (если нужно), или введите текст для кнопки.');
+    } else if (msg.photo && !broadcastPhoto) {
+      // Сохраняем изображение, если оно отправлено
+      broadcastPhoto = msg.photo[msg.photo.length - 1].file_id;
+      bot.sendMessage(chatId, 'Изображение сохранено. Теперь отправьте текст для кнопки.');
+    } else if (!broadcastButtonText) {
+      // Сохраняем текст кнопки
       broadcastButtonText = msg.text;
-      bot.sendMessage(chatId, 'Текст кнопки сохранен. Теперь отправьте ссылку для кнопки.');
-    } else if (msg.text && broadcastButtonText && !broadcastButtonUrl) {
-      // Если получена ссылка для кнопки
+      bot.sendMessage(chatId, 'Текст кнопки сохранен. Теперь отправьте URL-ссылку для кнопки.');
+    } else if (!broadcastButtonUrl) {
+      // Сохраняем URL для кнопки
       broadcastButtonUrl = msg.text;
-      bot.sendMessage(chatId, 'Ссылка для кнопки сохранена. Теперь отправьте команду /send для отправки.');
-    } else if (msg.text === '/send') {
-      // Отправляем сообщение всем пользователям
-      broadcastStep = false;
-      await sendMessageWithPhotoAndButtonToAllUsers(broadcastMessage, broadcastPhoto, broadcastButtonText, broadcastButtonUrl);
-      bot.sendMessage(chatId, 'Сообщение с картинкой и кнопкой успешно отправлено всем пользователям.');
+      bot.sendMessage(chatId, 'Ссылка для кнопки сохранена. Введите команду /send для отправки сообщения.');
     }
   }
+});
+
+// Обработчик команды /send для рассылки
+bot.onText(/\/send/, async (msg) => {
+  const chatId = msg.chat.id;
+
+  // Проверяем, что команду выполняет администратор
+  if (msg.from.id.toString() !== ADMIN_TELEGRAM_ID) {
+    return bot.sendMessage(chatId, 'У вас нет прав для выполнения этой команды.');
+  }
+
+  if (!broadcastMessage) {
+    return bot.sendMessage(chatId, 'Нет сообщения для отправки. Пожалуйста, используйте команду /broadcast для начала настройки сообщения.');
+  }
+
+  // Отправляем сообщение всем пользователям
+  broadcastStep = false;
+  await sendMessageWithPhotoAndButtonToAllUsers(broadcastMessage, broadcastPhoto, broadcastButtonText, broadcastButtonUrl);
+  bot.sendMessage(chatId, 'Сообщение с картинкой и кнопкой успешно отправлено всем пользователям.');
+
+  // Сбрасываем данные после отправки
+  broadcastMessage = '';
+  broadcastPhoto = null;
+  broadcastButtonText = '';
+  broadcastButtonUrl = '';
 });
 
 bot.onText(/\/start(?: (.+))?/, async (msg, match) => {
